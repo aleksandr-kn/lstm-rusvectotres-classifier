@@ -58,25 +58,6 @@ def tag_mystem(
         tagged = [t.split("_")[0] for t in tagged]
     return tagged
 
-def text_cleaning(text: str) -> str:
-    # TODO возможно это не нужно, весь метод всмысле, пока не знаю
-
-    """
-    Очистка текста:
-    - Приводит к нижнему регистру,
-    - Удаляет все символы, кроме русских букв и пробелов,
-    - Удаляет стоп-слова.
-    Лемматизация не производится.
-    """
-    text = text.lower()
-    # Оставляем только русские буквы и пробелы
-    text = re.sub(r"[^а-яё\s]", " ", text)
-    tokens = text.split()
-    # Удаляем стоп-слова
-    tokens = [t for t in tokens if t not in russian_stopwords]
-
-    return " ".join(tokens)
-
 def custom_lemmatize_and_postag_with_mystem(text: str, mystem_instance, mapping: dict, postags: bool = True) -> list[str]:
     """
     Лемматизирует и размечает части речи в русском тексте с помощью Yandex Mystem.
