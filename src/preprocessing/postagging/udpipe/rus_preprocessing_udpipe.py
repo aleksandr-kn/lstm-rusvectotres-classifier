@@ -217,6 +217,7 @@ def process(pipeline, text="Строка", keep_pos=True, keep_punct=False):
 udpipe_model_url = "https://rusvectores.org/static/models/udpipe_syntagrus.model"
 
 # Парсим имя файла, берем все что после последнего '/'
+#TODO: сделать чтобы скачанную модель искало не в корне, а рядом с текущим скриптом
 udpipe_filename = udpipe_model_url.split("/")[-1]
 
 if not os.path.isfile(udpipe_filename):
