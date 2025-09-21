@@ -4,3 +4,9 @@
 
 # MacOS
 .DS_Store
+
+# Запуски pipeline-а
+outputs/
+
+# Сторонние модели (весят слишком много для github)
+pretrained/
