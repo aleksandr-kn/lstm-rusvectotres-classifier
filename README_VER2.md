@@ -5,6 +5,7 @@
 ``` Structure
 lstm-rusvectores-classified/
 ├── data/ # Сырые и промежуточные данные
+├── pretrained/  внешние модели и веса, в частности модели rusvectores (каждая в отдельной директории)
 ├── notebooks/ # Jupyter-ноутбуки для экспериментов и анализа
 ├── src/ # Исходный код
 │ ├── preprocessing/ # Скрипты токенизации, POS-теггинга и очистки текста
