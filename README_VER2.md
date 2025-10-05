@@ -18,3 +18,19 @@ lstm-rusvectores-classified/
 └── README.md # Документация проекта
 ```
 
+## Важные замечания
+
+### Запуск на windows и проблемы с кодировкой 'utf-8'
+Pipeline работает только при запуске с кодировкой консоли 'utf-8'
+На Windows Python по умолчанию использует cp1251, поэтому русские символы в выходных файлах могут отображаться как � при postagging (UDPipe / rusvectores).
+Git Bash:
+
+export PYTHONIOENCODING=utf-8
+python src/pipeline.py --csv './data/texts/dataset_as_of_2025-10-05.csv' --column 'text'
+
+cmd.exe:
+
+chcp 65001
+python src\pipeline.py --csv ".\data\texts\dataset_as_of_2025-10-05.csv" --column "text"
+
+На Linux/WSL настройка не нужна. Если символы всё ещё ломаются, используйте WSL/Linux.

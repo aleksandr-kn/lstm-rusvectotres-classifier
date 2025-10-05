@@ -4,6 +4,7 @@ from datetime import datetime
 import subprocess
 import sys
 import pandas as pd
+import argparse
 
 def create_run_directory(base_dir: str) -> str:
     """
@@ -71,11 +72,11 @@ def run_postagger(input_txt_path: str, output_txt_path: str, postagger_script_pa
             stdin=f_in,
             stdout=f_out,
             stderr=sys.stderr,
-            check=True
+            check=True,
+            encoding='utf-8'
         )
 
     print(f"Postagged тексты сохранены в {output_txt_path}")
-
 
 def merge_postagged_to_csv(original_csv_path: str, postagged_txt_path: str, output_csv_path: str,
                            text_column: str = "text") -> None:
@@ -157,12 +158,19 @@ def build_embedding_matrix_npz(word2index_npz_path: str, rusvectores_model_path:
 
     print(f"[✓] Матрица эмбеддингов построена и сохранена в {output_npz_path}")
 
-def run_prepocessing_pipeline() -> None:
+def run_prepocessing_pipeline(
+    source_csv_dataset_path: str = "data/texts/data_2025_20_07/file_no_duplicates_correct.csv",
+    text_column: str = 'text'
+) -> None:
     """
     Запускает pipeline для подготовки текста.
     По итогу должна сформировать 2 файла:
     - embedding_matrix.npz - матрица эмбеддингов
     - word2vec.npz - словарь - слово - индекс
+
+    Параметры:
+    - source_csv_dataset_path: путь до исходного CSV файла с текстами
+    - text_column: имя колонки с текстом в CSV
     """
 
     # Базовая директория, куда складываются промежуточные файлы
@@ -171,12 +179,6 @@ def run_prepocessing_pipeline() -> None:
     # Создаем базовую директорию, куда будут склаывадться все промежуточные выводы:
     current_run_dir = create_run_directory(base_output_dir)
 
-    #TODO: шаги надо будет куда-то вынести
-
-    # Шаг 1: извелкаем тексты из .csv файла
-    # Исходный датасет .csv
-    source_csv_dataset_path = "data/texts/data_2025_20_07/file_no_duplicates_correct.csv"
-    #Extracted file path
     extracted_txt_file_path = os.path.join(current_run_dir, "extracted_texts.txt")
     # Извлекаем тексты
     extract_texts_from_csv(source_csv_dataset_path, extracted_txt_file_path, 'text')
@@ -192,7 +194,7 @@ def run_prepocessing_pipeline() -> None:
         original_csv_path=source_csv_dataset_path,
         postagged_txt_path=postagged_txt_file_path,
         output_csv_path=postagged_csv_path,
-        text_column='text'
+        text_column=text_column
     )
 
     # Шаг 4 - строим word2index.npz
@@ -210,4 +212,34 @@ def run_prepocessing_pipeline() -> None:
     build_embedding_matrix_npz(word2index_npz_path, rusvectores_model_path, embedding_matrix_npz_path)
 
 if __name__ == "__main__":
-    run_prepocessing_pipeline()
+    parser = argparse.ArgumentParser(description="Run text preprocessing pipeline")
+
+    # Аргумент для пути до исходного CSV файла
+    parser.add_argument(
+        "--csv",                       # имя аргумента
+        type=str,                       # ожидаемый тип
+        default="data/texts/data_2025_20_07/file_no_duplicates_correct.csv",  # значение по умолчанию
+        help="Path to the source CSV file"  # описание для --help
+    )
+
+    # Аргумент для имени колонки с текстом
+    parser.add_argument(
+        "--column",
+        type=str,
+        default="text",
+        help="Name of the column containing text"
+    )
+
+    # Разбираем аргументы командной строки
+    args = parser.parse_args()
+
+    # Передаем полученные аргументы в функцию pipeline
+    run_prepocessing_pipeline(
+        source_csv_dataset_path=args.csv,  # путь до CSV
+        text_column=args.column            # колонка с текстом
+    )
+
+    run_prepocessing_pipeline(
+        source_csv_dataset_path=args.csv,
+        text_column=args.column
+    )
