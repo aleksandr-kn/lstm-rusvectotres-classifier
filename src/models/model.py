@@ -1,6 +1,10 @@
 import os
 import csv
+import argparse
+import sys
+
 import numpy as np
+
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Embedding, LSTM, Dense
 from tensorflow.keras.preprocessing.sequence import pad_sequences
@@ -120,22 +124,54 @@ class LanguageModel:
 
         return model
 
-def main():
+def main(embeddings_dir: str, dataset_csv_path: str):
     language_model = LanguageModel(model_file=None)
-    print("Подготовка датасета...")
+
+    print(f"[+] Подгружаем словарь и матрицу эмбеддингов из {embeddings_dir}")
+
+    # Пути до файлов
+    word2index_path = os.path.join(embeddings_dir, "word2index.npz")
+    embedding_matrix_path = os.path.join(embeddings_dir, "embedding_matrix.npz")
 
     # Загружаем словарь слово -> index
-    language_model.load_word2index_vocab_from_npz('data/texts/rusvectores_word2index.npz')
+    language_model.load_word2index_vocab_from_npz(word2index_path)
 
     # Загружаем матрицу весов Embedding matrix
-    language_model.load_embedding_matrix_from_npz('data/texts/rusvectores_embedding_matrix.npz')
+    language_model.load_embedding_matrix_from_npz(embedding_matrix_path)
+
+    print(f"[+] Загружаем датасет из {dataset_csv_path}")
 
     # Загружаем датасет в формат "Предложение из датасета" -> [0, 1, 2]
-    language_model.load_vectorized_dataset_from_csv('data/texts/clean-progress-07-08_3_rusvectores.csv')
+    language_model.load_vectorized_dataset_from_csv(dataset_csv_path)
 
     embedding_dim = language_model.embedding_matrix.shape[1]  # размерность векторов
 
-    language_model.build_and_train_model(language_model.dataset['X'], language_model.dataset['y'], language_model.embedding_matrix, embedding_dim, 50, 2)
+    print("[+] Строим и обучаем модель...")
+    language_model.build_and_train_model(
+        language_model.dataset['X'],
+        language_model.dataset['y'],
+        language_model.embedding_matrix,
+        embedding_dim,
+        50,
+        2
+    )
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Train LSTM model on RusVectores embeddings")
+
+    parser.add_argument(
+        "--embeddings_dir",
+        type=str,
+        required=True,
+        help="Path to directory containing word2index.npz and embedding_matrix.npz"
+    )
+
+    parser.add_argument(
+        "--dataset_csv",
+        type=str,
+        required=True,
+        help="Path to CSV dataset with postagged texts"
+    )
+    args = parser.parse_args()
+
+    main(args.embeddings_dir, args.dataset_csv)

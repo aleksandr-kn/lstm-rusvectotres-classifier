@@ -5,10 +5,13 @@ import subprocess
 import sys
 import pandas as pd
 import argparse
+import random
+import string
 
 def create_run_directory(base_dir: str) -> str:
     """
-    Создает уникальную директорию для текущего запуска пайплайна с меткой времени.
+    Создает уникальную директорию для текущего запуска пайплайна.
+    Формат: run_<unique_id>_<YYYY-MM-DD_HH-MM-SS>
 
     Args:
         base_dir (str): Базовая директория для всех запусков.
@@ -16,9 +19,11 @@ def create_run_directory(base_dir: str) -> str:
     Returns:
         str: Путь к созданной директории для текущего запуска.
     """
+    unique_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    run_dir = os.path.join(base_dir, f"run_{timestamp}")
+    run_dir = os.path.join(base_dir, f"run_{unique_id}_{timestamp}")
     os.makedirs(run_dir, exist_ok=True)
+    print(f"[+] Run directory created: {run_dir} (unique_id: {unique_id})")
     return run_dir
 
 def extract_texts_from_csv(input_csv_path: str, output_txt_path: str, text_column: str = "text") -> None:

@@ -234,5 +234,5 @@ print("Processing input...", file=sys.stderr)
 for input_line in sys.stdin:
     res = unify_sym(input_line.strip())
 
-    output = process(process_pipeline, text=res, keep_pos=True, keep_punct=True)
+    output = process(process_pipeline, text=res, keep_pos=True, keep_punct=False)
     print(" ".join(output))
