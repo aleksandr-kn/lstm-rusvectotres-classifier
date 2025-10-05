@@ -6,7 +6,7 @@ import sys
 import numpy as np
 
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Embedding, LSTM, Dense
+from tensorflow.keras.layers import Embedding, LSTM, Dense, Bidirectional
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.utils import to_categorical
 from sklearn.model_selection import train_test_split
@@ -93,7 +93,7 @@ class LanguageModel:
 
         self.dataset = dataset
 
-    def build_and_train_model(self, X, y, W, embedding_dim, max_len, num_classes, epochs=10, batch_size=32):
+    def build_and_train_model(self, X, y, W, embedding_dim, max_len, num_classes, epochs=10, batch_size=32, bidirectional=True):
         # Паддинг последовательностей до max_len
         X_padded = pad_sequences(X, maxlen=max_len, padding='post', truncating='post')
 
@@ -105,7 +105,12 @@ class LanguageModel:
         model = Sequential()
         model.add(Embedding(input_dim=vocab_size, output_dim=embedding_dim, weights=[W], trainable=False,
                             input_length=max_len))
-        model.add(LSTM(64, return_sequences=False))
+        # В зависимости от того используем Biderectional или нет добавляем разные слои
+        if bidirectional:
+            model.add(Bidirectional(LSTM(64, return_sequences=False)))
+        else:
+            model.add(LSTM(64, return_sequences=False))
+
         model.add(Dense(num_classes, activation='softmax'))
 
         model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
