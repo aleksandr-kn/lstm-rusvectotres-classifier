@@ -9,8 +9,11 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Embedding, LSTM, Dense, Bidirectional
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.layers import Dropout
+from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
+
 
 class LanguageModel:
     """
@@ -95,6 +98,7 @@ class LanguageModel:
 
     def build_and_train_model(self, X, y, W, embedding_dim, max_len, num_classes, epochs=10, batch_size=32, bidirectional=True):
         # Паддинг последовательностей до max_len
+        #TODO: Процентиль (например, 90-й) для max_len, или медианное кол-во слов, может даже среднее брать пойдет
         X_padded = pad_sequences(X, maxlen=max_len, padding='post', truncating='post')
 
         # Преобразуем метки в one-hot encoding
@@ -107,9 +111,11 @@ class LanguageModel:
                             input_length=max_len))
         # В зависимости от того используем Biderectional или нет добавляем разные слои
         if bidirectional:
-            model.add(Bidirectional(LSTM(64, return_sequences=False)))
+            model.add(Bidirectional(LSTM(256, return_sequences=False)))
         else:
             model.add(LSTM(64, return_sequences=False))
+
+        model.add(Dropout(0.2))
 
         model.add(Dense(num_classes, activation='softmax'))
 
@@ -118,7 +124,15 @@ class LanguageModel:
         # Разбиваем на train и val для оценки
         X_train, X_val, y_train, y_val = train_test_split(X_padded, y_cat, test_size=0.2, random_state=42)
 
-        model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=epochs, batch_size=batch_size)
+        # Early stopping: останавливаем обучение, если val_loss не улучшается 3 эпохи
+        #TODO: не знаю нужно ли это
+        early_stop = EarlyStopping(
+            monitor='val_loss',  # метрика для отслеживания
+            patience=6,  # сколько эпох ждать улучшения
+            restore_best_weights=True  # вернуть веса лучшей эпохи
+        )
+
+        model.fit(X_train, y_train, validation_data=(X_val, y_val), epochs=epochs, batch_size=batch_size, callbacks=[early_stop])
 
         # Оценка на валидационной выборке
         y_val_pred = model.predict(X_val)
