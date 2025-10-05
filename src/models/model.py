@@ -124,14 +124,15 @@ class LanguageModel:
 
         return model
 
-def main(embeddings_dir: str, dataset_csv_path: str):
+def main(data_dir: str):
     language_model = LanguageModel(model_file=None)
 
-    print(f"[+] Подгружаем словарь и матрицу эмбеддингов из {embeddings_dir}")
+    print(f"[+] Подгружаем словарь и матрицу эмбеддингов из {data_dir}")
 
     # Пути до файлов
-    word2index_path = os.path.join(embeddings_dir, "word2index.npz")
-    embedding_matrix_path = os.path.join(embeddings_dir, "embedding_matrix.npz")
+    word2index_path = os.path.join(data_dir, "word2index.npz")
+    embedding_matrix_path = os.path.join(data_dir, "embedding_matrix.npz")
+    dataset_csv_path = os.path.join(data_dir, "postagged_dataset.csv")
 
     # Загружаем словарь слово -> index
     language_model.load_word2index_vocab_from_npz(word2index_path)
@@ -139,7 +140,7 @@ def main(embeddings_dir: str, dataset_csv_path: str):
     # Загружаем матрицу весов Embedding matrix
     language_model.load_embedding_matrix_from_npz(embedding_matrix_path)
 
-    print(f"[+] Загружаем датасет из {dataset_csv_path}")
+    print(f"[+] Загружаем датасет из {data_dir}")
 
     # Загружаем датасет в формат "Предложение из датасета" -> [0, 1, 2]
     language_model.load_vectorized_dataset_from_csv(dataset_csv_path)
@@ -160,18 +161,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train LSTM model on RusVectores embeddings")
 
     parser.add_argument(
-        "--embeddings_dir",
+        "--data_dir",
         type=str,
         required=True,
         help="Path to directory containing word2index.npz and embedding_matrix.npz"
     )
 
-    parser.add_argument(
-        "--dataset_csv",
-        type=str,
-        required=True,
-        help="Path to CSV dataset with postagged texts"
-    )
     args = parser.parse_args()
 
-    main(args.embeddings_dir, args.dataset_csv)
+    main(args.data_dir)
