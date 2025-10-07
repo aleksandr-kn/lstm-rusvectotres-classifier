@@ -243,8 +243,3 @@ if __name__ == "__main__":
         source_csv_dataset_path=args.csv,  # путь до CSV
         text_column=args.column            # колонка с текстом
     )
-
-    run_prepocessing_pipeline(
-        source_csv_dataset_path=args.csv,
-        text_column=args.column
-    )
