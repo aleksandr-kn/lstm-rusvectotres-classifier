@@ -96,6 +96,67 @@ class LanguageModel:
 
         self.dataset = dataset
 
+    def build_and_train_model_with_dropout_rate(
+            self, X, y, W, embedding_dim, max_len, num_classes,
+            epochs=50, batch_size=32, bidirectional=True, lstm_units=256, dropout_rate=0.3):
+
+        # Паддинг последовательностей до max_len
+        X_padded = pad_sequences(X, maxlen=max_len, padding='post', truncating='post')
+
+        # One-hot encoding меток
+        y_cat = to_categorical(y, num_classes=num_classes)
+
+        vocab_size = W.shape[0]
+
+        model = Sequential()
+        model.add(Embedding(input_dim=vocab_size,
+                            output_dim=embedding_dim,
+                            weights=[W],
+                            trainable=False,
+                            input_length=max_len))
+
+        # LSTM слой с Dropout и recurrent_dropout
+        lstm_layer = LSTM(lstm_units, return_sequences=False, dropout=dropout_rate, recurrent_dropout=dropout_rate)
+
+        if bidirectional:
+            from tensorflow.keras.layers import Bidirectional
+            model.add(Bidirectional(lstm_layer))
+        else:
+            model.add(lstm_layer)
+
+        # Дополнительный Dropout перед Dense
+        model.add(Dropout(dropout_rate))
+
+        model.add(Dense(num_classes, activation='softmax'))
+
+        model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+
+        # Train/Validation split
+        X_train, X_val, y_train, y_val = train_test_split(X_padded, y_cat, test_size=0.2, random_state=42)
+
+        # Early stopping по val_loss с восстановлением лучших весов
+        early_stop = EarlyStopping(
+            monitor='val_loss',
+            patience=6,
+            restore_best_weights=True
+        )
+
+        model.fit(X_train, y_train,
+                  validation_data=(X_val, y_val),
+                  epochs=epochs,
+                  batch_size=batch_size,
+                  callbacks=[early_stop])
+
+        # Оценка на валидационной выборке
+        y_val_pred = model.predict(X_val)
+        y_val_pred_classes = np.argmax(y_val_pred, axis=1)
+        y_val_true = np.argmax(y_val, axis=1)
+
+        from sklearn.metrics import classification_report
+        print(classification_report(y_val_true, y_val_pred_classes))
+
+        return model
+
     def build_and_train_model(self, X, y, W, embedding_dim, max_len, num_classes, epochs=10, batch_size=32, bidirectional=True):
         # Паддинг последовательностей до max_len
         #TODO: Процентиль (например, 90-й) для max_len, или медианное кол-во слов, может даже среднее брать пойдет
