@@ -32,7 +32,9 @@ from tensorflow.keras.layers import Embedding, LSTM, Dense, Bidirectional
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.layers import Dropout
-from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+
+from sklearn.utils import class_weight
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 
@@ -142,6 +144,85 @@ class LanguageModel:
         print(f"Min: {np.min(text_lengths)}")
         print(f"Std: {np.std(text_lengths):.1f}")
         print(f"Текстов > 500 слов: {sum(1 for x in text_lengths if x > 500)}")
+
+    def build_and_train_model_double_lstm(self, X, y, W, embedding_dim, max_len, num_classes, epochs=30, batch_size=32,
+                              bidirectional=True):
+        # Паддинг последовательностей до max_len
+        X_padded = pad_sequences(X, maxlen=max_len, padding='post', truncating='post')
+
+        # One-hot encoding меток
+        y_cat = to_categorical(y, num_classes=num_classes)
+
+        # class_weight для несбалансированных классов
+        y_integers = np.argmax(y_cat, axis=1)
+        weights = class_weight.compute_class_weight(
+            class_weight='balanced',
+            classes=np.unique(y_integers),
+            y=y_integers
+        )
+        class_weights = dict(enumerate(weights))
+
+        vocab_size = W.shape[0]
+
+        model = Sequential()
+        model.add(Embedding(input_dim=vocab_size, output_dim=embedding_dim, weights=[W], trainable=False,
+                            input_length=max_len))
+
+        # Двухслойная LSTM с регуляризацией
+        if bidirectional:
+            model.add(Bidirectional(LSTM(
+                128, return_sequences=True,
+                kernel_regularizer=regularizers.l2(5e-4),
+                recurrent_regularizer=regularizers.l2(5e-4)
+            )))
+            model.add(Dropout(0.4))
+            model.add(Bidirectional(LSTM(
+                64, return_sequences=False,
+                kernel_regularizer=regularizers.l2(5e-4),
+                recurrent_regularizer=regularizers.l2(5e-4)
+            )))
+        else:
+            model.add(LSTM(
+                128, return_sequences=True,
+                kernel_regularizer=regularizers.l2(5e-4),
+                recurrent_regularizer=regularizers.l2(5e-4)
+            ))
+            model.add(Dropout(0.4))
+            model.add(LSTM(
+                64, return_sequences=False,
+                kernel_regularizer=regularizers.l2(5e-4),
+                recurrent_regularizer=regularizers.l2(5e-4)
+            ))
+
+        model.add(Dropout(0.3))
+        model.add(Dense(num_classes, activation='softmax', kernel_regularizer=regularizers.l2(5e-4)))
+
+        optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4)
+        model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+
+        # Разбиваем на train и val
+        X_train, X_val, y_train, y_val = train_test_split(X_padded, y_cat, test_size=0.2, random_state=42)
+
+        # EarlyStopping и ReduceLROnPlateau
+        early_stop = EarlyStopping(monitor='val_loss', patience=4, restore_best_weights=True)
+        reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=2, min_lr=1e-6, verbose=1)
+
+        model.fit(
+            X_train, y_train,
+            validation_data=(X_val, y_val),
+            epochs=epochs,
+            batch_size=batch_size,
+            callbacks=[early_stop, reduce_lr],
+            class_weight=class_weights
+        )
+
+        # Оценка на валидационной выборке
+        y_val_pred = model.predict(X_val)
+        y_val_pred_classes = np.argmax(y_val_pred, axis=1)
+        y_val_true = np.argmax(y_val, axis=1)
+        print(classification_report(y_val_true, y_val_pred_classes))
+
+        return model
 
     def build_and_train_model(self, X, y, W, embedding_dim, max_len, num_classes, epochs=25, batch_size=32, bidirectional=True):
         # Паддинг последовательностей до max_len
