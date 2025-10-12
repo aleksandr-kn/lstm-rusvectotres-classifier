@@ -34,3 +34,16 @@ chcp 65001
 python src\pipeline.py --csv ".\data\texts\dataset_as_of_2025-10-05.csv" --column "text"
 
 На Linux/WSL настройка не нужна. Если символы всё ещё ломаются, используйте WSL/Linux.
+
+###  Использование TensorFlow с GPU на Windows
+
+**Поддерживаемая конфигурация:**
+- TensorFlow 2.10.0 (последняя версия с официальной поддержкой GPU на Windows)
+- CUDA 11.2.0 
+- cuDNN 8.1.0
+
+**Проверено на:**
+- NVIDIA GeForce RTX 3060
+- Драйвер NVIDIA 576.52
+- Windows 10/11
+

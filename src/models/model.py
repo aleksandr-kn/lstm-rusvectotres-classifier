@@ -1,10 +1,32 @@
+import sys
 import os
+
+# На Windows поддержка GPU есть только на TF 2.10
+# И необходимо напрямую указывать путь до CUDA библиотек
+# (Должны быть установлены в системе).
+# Рабочие версии: CUDA 11.2, CuDnn 8.1.0 (остальные не заводятся)
+if sys.platform == "win32":
+    os.add_dll_directory("C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.2/bin")
+
+    import tensorflow as tf
+
+    # Еще один костыль для Windows, связанный с тем что выкидавает
+    # Ошибку нехватки памяти
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        try:
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+            print("GPU memory growth enabled")
+        except RuntimeError as e:
+            print("Could not set memory growth:", e)
+
 import csv
 import argparse
-import sys
-
 import numpy as np
+import matplotlib.pyplot as plt
 
+from tensorflow.keras import regularizers
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Embedding, LSTM, Dense, Bidirectional
 from tensorflow.keras.preprocessing.sequence import pad_sequences
@@ -13,7 +35,6 @@ from tensorflow.keras.layers import Dropout
 from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
-
 
 class LanguageModel:
     """
@@ -96,70 +117,34 @@ class LanguageModel:
 
         self.dataset = dataset
 
-    def build_and_train_model_with_dropout_rate(
-            self, X, y, W, embedding_dim, max_len, num_classes,
-            epochs=50, batch_size=32, bidirectional=True, lstm_units=256, dropout_rate=0.3):
+    def check_distribution(self, texts):
+        """
+        Проверяет распределение текстов по количеству слов
+        """
+        # Считаем слова вместо символов
+        text_lengths = [len(text.split()) for text in texts]
 
+        plt.figure(figsize=(10, 6))
+        plt.hist(text_lengths, bins=50, alpha=0.7, color='skyblue')
+        plt.title('Распределение текстов по количеству слов')
+        plt.xlabel('Количество слов в тексте')
+        plt.ylabel('Частота')
+        plt.grid(True, alpha=0.3)
+        plt.show()
+
+        print(f"Mean: {np.mean(text_lengths):.1f}")
+        print(f"Median: {np.median(text_lengths):.1f}")
+        print(f"85% percentile: {np.percentile(text_lengths, 85):.1f}")
+        print(f"95% percentile: {np.percentile(text_lengths, 95):.1f}")
+        print(f"Max: {np.max(text_lengths)}")
+
+        # Дополнительная полезная статистика
+        print(f"Min: {np.min(text_lengths)}")
+        print(f"Std: {np.std(text_lengths):.1f}")
+        print(f"Текстов > 500 слов: {sum(1 for x in text_lengths if x > 500)}")
+
+    def build_and_train_model(self, X, y, W, embedding_dim, max_len, num_classes, epochs=25, batch_size=32, bidirectional=True):
         # Паддинг последовательностей до max_len
-        X_padded = pad_sequences(X, maxlen=max_len, padding='post', truncating='post')
-
-        # One-hot encoding меток
-        y_cat = to_categorical(y, num_classes=num_classes)
-
-        vocab_size = W.shape[0]
-
-        model = Sequential()
-        model.add(Embedding(input_dim=vocab_size,
-                            output_dim=embedding_dim,
-                            weights=[W],
-                            trainable=False,
-                            input_length=max_len))
-
-        # LSTM слой с Dropout и recurrent_dropout
-        lstm_layer = LSTM(lstm_units, return_sequences=False, dropout=dropout_rate, recurrent_dropout=dropout_rate)
-
-        if bidirectional:
-            from tensorflow.keras.layers import Bidirectional
-            model.add(Bidirectional(lstm_layer))
-        else:
-            model.add(lstm_layer)
-
-        # Дополнительный Dropout перед Dense
-        model.add(Dropout(dropout_rate))
-
-        model.add(Dense(num_classes, activation='softmax'))
-
-        model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
-
-        # Train/Validation split
-        X_train, X_val, y_train, y_val = train_test_split(X_padded, y_cat, test_size=0.2, random_state=42)
-
-        # Early stopping по val_loss с восстановлением лучших весов
-        early_stop = EarlyStopping(
-            monitor='val_loss',
-            patience=6,
-            restore_best_weights=True
-        )
-
-        model.fit(X_train, y_train,
-                  validation_data=(X_val, y_val),
-                  epochs=epochs,
-                  batch_size=batch_size,
-                  callbacks=[early_stop])
-
-        # Оценка на валидационной выборке
-        y_val_pred = model.predict(X_val)
-        y_val_pred_classes = np.argmax(y_val_pred, axis=1)
-        y_val_true = np.argmax(y_val, axis=1)
-
-        from sklearn.metrics import classification_report
-        print(classification_report(y_val_true, y_val_pred_classes))
-
-        return model
-
-    def build_and_train_model(self, X, y, W, embedding_dim, max_len, num_classes, epochs=10, batch_size=32, bidirectional=True):
-        # Паддинг последовательностей до max_len
-        #TODO: Процентиль (например, 90-й) для max_len, или медианное кол-во слов, может даже среднее брать пойдет
         X_padded = pad_sequences(X, maxlen=max_len, padding='post', truncating='post')
 
         # Преобразуем метки в one-hot encoding
@@ -170,26 +155,46 @@ class LanguageModel:
         model = Sequential()
         model.add(Embedding(input_dim=vocab_size, output_dim=embedding_dim, weights=[W], trainable=False,
                             input_length=max_len))
-        # В зависимости от того используем Biderectional или нет добавляем разные слои
+
+        # Добавляем LSTM с регуляризацией
         if bidirectional:
-            model.add(Bidirectional(LSTM(256, return_sequences=False)))
+            model.add(Bidirectional(LSTM(
+                64,
+                return_sequences=False,
+                kernel_regularizer=regularizers.l2(1e-3),
+                recurrent_regularizer=regularizers.l2(1e-3),
+                bias_regularizer=regularizers.l2(1e-3)
+            )))
         else:
-            model.add(LSTM(64, return_sequences=False))
+            model.add(LSTM(
+                64,
+                return_sequences=False,
+                kernel_regularizer=regularizers.l2(1e-3),
+                recurrent_regularizer=regularizers.l2(1e-3),
+                bias_regularizer=regularizers.l2(1e-3)
+            ))
 
-        model.add(Dropout(0.2))
+        model.add(Dropout(0.4))
 
-        model.add(Dense(num_classes, activation='softmax'))
+        model.add(
+            Dense(
+                num_classes,
+                activation='softmax',
+                kernel_regularizer=regularizers.l2(1e-3)
+            )
+        )
 
-        model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+        optimizer = tf.keras.optimizers.Adam(learning_rate=1e-4)
+
+        model.compile(loss='categorical_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 
         # Разбиваем на train и val для оценки
         X_train, X_val, y_train, y_val = train_test_split(X_padded, y_cat, test_size=0.2, random_state=42)
 
-        # Early stopping: останавливаем обучение, если val_loss не улучшается 3 эпохи
-        #TODO: не знаю нужно ли это
+        # Early stopping: останавливаем обучение, если val_loss не улучшается 4 эпох
         early_stop = EarlyStopping(
             monitor='val_loss',  # метрика для отслеживания
-            patience=6,  # сколько эпох ждать улучшения
+            patience=5,  # сколько эпох ждать улучшения
             restore_best_weights=True  # вернуть веса лучшей эпохи
         )
 
@@ -227,13 +232,16 @@ def main(data_dir: str):
 
     embedding_dim = language_model.embedding_matrix.shape[1]  # размерность векторов
 
+    print("[+] Проверяем размерность датасета:")
+    # language_model.check_distribution(language_model.dataset['raw_texts'])
+
     print("[+] Строим и обучаем модель...")
     language_model.build_and_train_model(
         language_model.dataset['X'],
         language_model.dataset['y'],
         language_model.embedding_matrix,
         embedding_dim,
-        50,
+        150, # Выявлено по результатам распределения текстов, 85 процентиль кол-ва слов
         2
     )
 
