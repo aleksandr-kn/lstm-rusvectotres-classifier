@@ -224,7 +224,7 @@ class LanguageModel:
 
         return model
 
-    def build_and_train_model(self, X, y, W, embedding_dim, max_len, num_classes, epochs=25, batch_size=32, bidirectional=True):
+    def build_and_train_model(self, X, y, W, embedding_dim, max_len, num_classes, epochs=25, batch_size=8, bidirectional=True):
         # Паддинг последовательностей до max_len
         X_padded = pad_sequences(X, maxlen=max_len, padding='post', truncating='post')
 
@@ -255,7 +255,7 @@ class LanguageModel:
                 bias_regularizer=regularizers.l2(1e-3)
             ))
 
-        model.add(Dropout(0.4))
+        model.add(Dropout(0.5))
 
         model.add(
             Dense(
